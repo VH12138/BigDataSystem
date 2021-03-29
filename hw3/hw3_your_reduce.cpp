@@ -14,7 +14,6 @@
 
 #define MAX_LEN 268435456
 
-
 // You may add your functions and variables here
 
 void YOUR_Reduce(const int* sendbuf, int* recvbuf, int count) {
