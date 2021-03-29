@@ -9,7 +9,6 @@
 #include "./common/CycleTimer.h"
 #include "./common/graph.h"
 
-
 // pageRank --
 //
 // g:           graph to process (see common/graph.h)
