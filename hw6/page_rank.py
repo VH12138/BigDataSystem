@@ -4,6 +4,16 @@ import time
 import re
 import numpy as np
 
+
+# function that maps an iterator of nodes to a numpy array
+def nodesToVec(nodes, deg, n):
+    vec = np.zeros((1, n))
+    for node in nodes:
+        if (node not in deg): continue
+        vec[0][node - 1] = 1. / deg[node]
+    return vec
+
+
 if __name__ == '__main__':
 
     # Create Spark context.
@@ -27,14 +37,6 @@ if __name__ == '__main__':
     # Find the number of outgoing edges from each node
     outgoing_count_dict = pairs.countByKey()
     # Create a row of M
-    # function that maps an iterator of nodes to a numpy array
-    def nodesToVec(nodes, deg, n):
-        vec = np.zeros((1, n))
-        for node in nodes:
-            if (node not in deg): continue
-            vec[0][node - 1] = 1. / deg[node]
-        return vec
-
     M = reverse_pairs.groupByKey().map(lambda (k, v): (k, nodesToVec(v, outgoing_count_dict, num_elem)))
 
     # Initialize pageRank vector r
