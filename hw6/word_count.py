@@ -12,6 +12,10 @@ if __name__ == '__main__':
     first = time.time()
 
     # Students: Implement Word Count!
+    words = lines.flatMap(lambda l: re.split(r'[^\w]+', l))
+    pairs = words.map(lambda w: (w, 1))
+    counts = pairs.reduceByKey(lambda n1, n2: n1 + n2)
+    counts.saveAsTextFile('Word_count_ans.txt')
 
     last = time.time()
 

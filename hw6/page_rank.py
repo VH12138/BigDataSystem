@@ -1,63 +1,82 @@
 import sys
-from pyspark import SparkConf, SparkContext
 import time
-import re
-import numpy as np
+from typing import Tuple, List, Iterable
+from pyspark import SparkConf, SparkContext
 
 
-# function that maps an iterator of nodes to a numpy array
-def nodesToVec(nodes, deg, n):
-    vec = np.zeros((1, n))
-    for node in nodes:
-        if (node not in deg): continue
-        vec[0][node - 1] = 1. / deg[node]
-    return vec
+# CONSTANTS
+BETA = 0.8
+MAX_ITERATIONS = 100
 
+
+def line_to_pair(line: str) -> Tuple[int, int]:
+    tokens = line.split()
+    return int(tokens[0]), int(tokens[1])
+
+
+def to_degree(item: Tuple[int, Iterable[int]]) -> List[Tuple[int, Tuple[int, float]]]:
+    source = item[0]
+    destinations = list(item[1])
+
+    out_degree = len(destinations)
+
+    result = []
+    for destination in destinations:
+        result.append((destination, (source, 1 / out_degree)))
+
+    return result
+
+
+def multiplication_function(row: Tuple[int, List[Tuple[int, float]]]) -> Tuple[int, float]:
+    destination = row[0]
+    degrees = {key: value for key, value in row[1]}
+
+    # compute dot product of "previous_row" x "this_row"
+    dot_product = 0
+    for j, value in enumerate(previous_r):
+        if (j + 1) in degrees:
+            dot_product += value * degrees[j + 1]
+
+    return destination - 1, dot_product
 
 if __name__ == '__main__':
-
+    
     # Create Spark context.
     conf = SparkConf()
     sc = SparkContext(conf=conf)
-    lines = sc.textFile(sys.argv[1])
+    graph = sc.textFile(sys.argv[1])
 
     first = time.time()
 
     # Students: Implement PageRank!
-    # Setup program constants
-    num_steps = 100
-    beta = 0.8
+    edges = graph.map(line_to_pair)
+    matrix = edges.distinct().groupByKey().flatMap(to_degree).groupByKey()
+    # matrix now in the form of (dest, [..., (source, degree), ...])
 
-    # Create matrix M - broken into rows
-    # Convert lines to pairs
-    pairs = lines.map(lambda l: tuple([int(num) for num in re.split('[ |\t]', l)])).distinct()
-    reverse_pairs = pairs.map(lambda p: tuple(reversed(p)))
-    # Count the number of elements in the graph
-    num_elem = pairs.flatMap(lambda p: p).distinct().count()
-    # Find the number of outgoing edges from each node
-    outgoing_count_dict = pairs.countByKey()
-    # Create a row of M
-    M = reverse_pairs.groupByKey().map(lambda (k, v): (k, nodesToVec(v, outgoing_count_dict, num_elem)))
+    n = edges.groupByKey().count()
 
-    # Initialize pageRank vector r
-    r = np.ones((num_elem, 1)) / num_elem
-    r_prev = r.copy()
+    r = [1 / n for _ in range(0, n)]
 
-    # Calculate teleport probability
-    tele_prob = (1. - beta) / num_elem
+    for i in range(0, MAX_ITERATIONS):
+        previous_r = r.copy()
+        r_temp = matrix.map(multiplication_function).collect()
+        r_temp.sort(key=lambda x: x[0])
+        r = [value * BETA + (1 - BETA) / n for _, value in r_temp]
 
-    # Iterate through the number of steps
-    for _ in range(num_steps):
-        rdd_r = M.map(lambda (k, v): (k, (v.dot(r_prev) * beta)[0][0]))
-        r[:] = tele_prob
+    indices = [(i, r[i]) for i in range(0, n)]
+    indices.sort(key=lambda x: x[1])
+    sorted_indices = [x[0] + 1 for x in indices]
 
-        for (node, val) in rdd_r.collect():
-            r[node - 1][0] += val
+    # Top 5 nodes with highest page rank
+    print('\n\nTOP 5 NODES (highest page rank)')
+    print('===============================')
+    print(list(reversed(sorted_indices[-5:])))
 
-	# Swap the assignments
-	temp = r_prev
-	r_prev = r
-	r = temp
+    # Top 5 nodes with lowest page rank
+    print('\nLOWEST 5 NODES (lowest page rank)')
+    print('=================================')
+    print(sorted_indices[:5])
+    print('\n\n')
 
     #print("5 highest:", highest[:5])
 
